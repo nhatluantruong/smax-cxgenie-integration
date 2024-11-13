@@ -1,62 +1,68 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any
 import httpx
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-class Message(BaseModel):
-    text: str
+@app.post("/webhook/smax")
+async def handle_webhook(request: Dict[str, Any]):
+    try:
+        # Log incoming request
+        logger.info(f"Received request: {request}")
 
-class WebhookRequest(BaseModel):
-    messages: List[Dict[str, Any]]
-    bot_id: str
-    workspace_token: str
+        # Extract the message text
+        message_text = request["messages"][0]["text"]
+        bot_id = request["bot_id"]
+        workspace_token = request["workspace_token"]
+
+        # Create CX Genie request
+        cxgenie_request = {
+            "bot_id": bot_id,
+            "content": message_text,
+            "workspace_token": workspace_token
+        }
+
+        # Send request to CX Genie
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://gateway.cxgenie.ai/api/v1/messages",
+                json=cxgenie_request
+            )
+            
+            logger.info(f"CX Genie response: {response.text}")
+            
+            if response.status_code == 200:
+                genie_data = response.json()
+                return {
+                    "messages": [
+                        {"text": genie_data.get("data", "No response content")}
+                    ]
+                }
+            else:
+                logger.error(f"CX Genie error: {response.status_code} - {response.text}")
+                return {
+                    "messages": [
+                        {"text": "Không thể kết nối với CX Genie. Vui lòng thử lại."}
+                    ]
+                }
+
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        # Return a more specific error message
+        return {
+            "messages": [
+                {"text": f"Có lỗi xảy ra: {str(e)}"}
+            ]
+        }
 
 @app.get("/")
 async def root():
     return {"message": "Service is running"}
-
-@app.post("/webhook/smax")
-async def handle_webhook(request: dict):
-    try:
-        # Print received request for debugging
-        print("Received request:", request)
-        
-        # Extract message text
-        message_text = request.get("messages", [{}])[0].get("text", "")
-        
-        # Prepare request for CX Genie
-        cxgenie_request = {
-            "bot_id": os.getenv("CXGENIE_BOT_ID"),
-            "content": message_text,
-            "workspace_token": os.getenv("CXGENIE_WORKSPACE_TOKEN")
-        }
-        
-        # Send to CX Genie
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{os.getenv('CXGENIE_API_URL')}/api/v1/messages",
-                json=cxgenie_request
-            )
-            response.raise_for_status()
-            cxgenie_response = response.json()
-            
-            # Format response for Smax
-            return {
-                "messages": [
-                    {"text": cxgenie_response.get("data", "No response from CX Genie")}
-                ]
-            }
-            
-    except Exception as e:
-        print("Error:", str(e))
-        return {
-            "messages": [
-                {"text": "Sorry, there was an error processing your request."}
-            ]
-        }
 
 if __name__ == "__main__":
     import uvicorn
