@@ -1,16 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import httpx
 import os
 
 app = FastAPI()
 
 class Message(BaseModel):
-    text: Optional[str]
+    text: str
 
 class WebhookRequest(BaseModel):
-    messages: List[Dict]
+    messages: List[Dict[str, Any]]
     bot_id: str
     workspace_token: str
 
@@ -19,16 +19,19 @@ async def root():
     return {"message": "Service is running"}
 
 @app.post("/webhook/smax")
-async def handle_webhook(request: WebhookRequest):
+async def handle_webhook(request: dict):
     try:
+        # Print received request for debugging
+        print("Received request:", request)
+        
         # Extract message text
-        message_text = request.messages[0].get("text", "") if request.messages else ""
+        message_text = request.get("messages", [{}])[0].get("text", "")
         
         # Prepare request for CX Genie
         cxgenie_request = {
-            "bot_id": request.bot_id,
+            "bot_id": os.getenv("CXGENIE_BOT_ID"),
             "content": message_text,
-            "workspace_token": request.workspace_token
+            "workspace_token": os.getenv("CXGENIE_WORKSPACE_TOKEN")
         }
         
         # Send to CX Genie
@@ -38,16 +41,22 @@ async def handle_webhook(request: WebhookRequest):
                 json=cxgenie_request
             )
             response.raise_for_status()
+            cxgenie_response = response.json()
             
             # Format response for Smax
             return {
                 "messages": [
-                    {"text": response.json().get("data", "No response from CX Genie")}
+                    {"text": cxgenie_response.get("data", "No response from CX Genie")}
                 ]
             }
             
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print("Error:", str(e))
+        return {
+            "messages": [
+                {"text": "Sorry, there was an error processing your request."}
+            ]
+        }
 
 if __name__ == "__main__":
     import uvicorn
