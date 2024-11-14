@@ -25,17 +25,16 @@ async def handle_webhook(request: Request):
 
         # Extract message and user info
         message_text = request_data["messages"][0]["text"]
-        user_info = request_data.get("chat_user", {})
-        user_name = user_info.get("name", "Unknown User")
+        chat_user_info = request_data.get("chat_user_info", {})
         
-        logger.info(f"Message from {user_name}: {message_text}")
+        logger.info(f"Message from {chat_user_info.get('name', 'Unknown')}: {message_text}")
 
         async with httpx.AsyncClient() as client:
             cxgenie_request = {
                 "bot_id": "106e68cc-bb92-4368-a647-f63399802641",
                 "content": message_text,
-                "workspace_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3Jrc3BhY2VfaWQiOiJhMzQ5YzU0YS0yNTNmLTRiMWEtOTdhOC1kYjM3MjcxMzA1MjgiLCJpYXQiOjE3MzA3MDg0OTl9.WM99uh4EjHrgd1XJKhZwl-6nS_g8qJ35u-EGcWQVcRE",
-                "chat_user": user_info  # Pass user info to CX Genie
+                "chat_user_info": chat_user_info,
+                "workspace_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3Jrc3BhY2VfaWQiOiJhMzQ5YzU0YS0yNTNmLTRiMWEtOTdhOC1kYjM3MjcxMzA1MjgiLCJpYXQiOjE3MzA3MDg0OTl9.WM99uh4EjHrgd1XJKhZwl-6nS_g8qJ35u-EGcWQVcRE"
             }
             
             response = await client.post(
@@ -53,6 +52,7 @@ async def handle_webhook(request: Request):
                     ]
                 }
             else:
+                logger.error(f"CX Genie error response: {response.status_code} - {response.text}")
                 return {
                     "messages": [
                         {"text": "CX Genie connection error. Please try again."}
