@@ -23,21 +23,24 @@ async def handle_webhook(request: Request):
         request_data = await request.json()
         logger.info(f"Parsed request: {request_data}")
 
-        # Extract message and user info
+        # Extract message text
         message_text = request_data["messages"][0]["text"]
-        user_info = request_data.get("chat_user_info", {})
+
+        # Create test user format exactly as shown in successful test
+        test_user = {
+            "name": request_data.get("chat_user_info", {}).get("name", "Unknown User"),
+            "email": request_data.get("chat_user_info", {}).get("email", ""),
+            "phone_number": request_data.get("chat_user_info", {}).get("phone_number", "")
+        }
         
-        # Prepare the request in the correct format
+        logger.info(f"Prepared user info: {test_user}")
+
+        # Prepare request matching successful test format
         cxgenie_request = {
             "bot_id": "106e68cc-bb92-4368-a647-f63399802641",
             "content": message_text,
-            "chat_user": {
-                "name": user_info.get("name", "Unknown User"),
-                "email": user_info.get("email", ""),
-                "phone_number": user_info.get("phone_number", "")
-            },
-            "workspace_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3Jrc3BhY2VfaWQiOiJhMzQ5YzU0YS0yNTNmLTRiMWEtOTdhOC1kYjM3MjcxMzA1MjgiLCJpYXQiOjE3MzA3MDg0OTl9.WM99uh4EjHrgd1XJKhZwl-6nS_g8qJ35u-EGcWQVcRE",
-            "metadata": {}
+            "chat_user": test_user,  # Using the test user format
+            "workspace_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3Jrc3BhY2VfaWQiOiJhMzQ5YzU0YS0yNTNmLTRiMWEtOTdhOC1kYjM3MjcxMzA1MjgiLCJpYXQiOjE3MzA3MDg0OTl9.WM99uh4EjHrgd1XJKhZwl-6nS_g8qJ35u-EGcWQVcRE"
         }
 
         logger.info(f"Sending request to CX Genie: {cxgenie_request}")
