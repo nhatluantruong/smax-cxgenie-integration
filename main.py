@@ -25,32 +25,34 @@ async def handle_webhook(request: Request):
 
         # Extract message and user info
         message_text = request_data["messages"][0]["text"]
-        chat_user_info = request_data.get("chat_user_info", {})
+        user_info = request_data.get("chat_user_info", {})
         
-        logger.info(f"Message from {chat_user_info.get('name', 'Unknown')}: {message_text}")
+        # Prepare the request in the correct format
+        cxgenie_request = {
+            "bot_id": "106e68cc-bb92-4368-a647-f63399802641",
+            "content": message_text,
+            "chat_user": {    # Changed from chat_user_info to chat_user
+                "name": user_info.get("name", "Unknown User"),
+                "email": user_info.get("email", ""),
+                "phone_number": user_info.get("phone_number", "")
+            },
+            "workspace_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3Jrc3BhY2VfaWQiOiJhMzQ5YzU0YS0yNTNmLTRiMWEtOTdhOC1kYjM3MjcxMzA1MjgiLCJpYXQiOjE3MzA3MDg0OTl9.WM99uh4EjHrgd1XJKhZwl-6nS_g8qJ35u-EGcWQVcRE",
+            "metadata": {}     // Added as per API spec
+        }
+
+        logger.info(f"Sending request to CX Genie: {cxgenie_request}")
 
         async with httpx.AsyncClient() as client:
-            cxgenie_request = {
-                "bot_id": "106e68cc-bb92-4368-a647-f63399802641",
-                "content": message_text,
-                "chat_user_info": chat_user_info,
-                "workspace_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3Jrc3BhY2VfaWQiOiJhMzQ5YzU0YS0yNTNmLTRiMWEtOTdhOC1kYjM3MjcxMzA1MjgiLCJpYXQiOjE3MzA3MDg0OTl9.WM99uh4EjHrgd1XJKhZwl-6nS_g8qJ35u-EGcWQVcRE"
-            }
-
-            headers = {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            }
-            
             response = await client.post(
                 "https://gateway.cxgenie.ai/api/v1/messages",
                 json=cxgenie_request,
-                headers=headers,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
                 timeout=30.0
             )
             
-            # Log the complete request and response for debugging
-            logger.info(f"CX Genie request: {cxgenie_request}")
             logger.info(f"CX Genie response status: {response.status_code}")
             logger.info(f"CX Genie response body: {response.text}")
             
@@ -63,10 +65,11 @@ async def handle_webhook(request: Request):
                     ]
                 }
             else:
-                logger.error(f"CX Genie error response: {response.status_code} - {response.text}")
+                error_message = f"Error {response.status_code}: {response.text}"
+                logger.error(error_message)
                 return {
                     "messages": [
-                        {"text": f"Error: {response.text}"}
+                        {"text": "Xin lỗi, có lỗi xảy ra. Vui lòng thử lại sau."}
                     ]
                 }
 
@@ -74,7 +77,7 @@ async def handle_webhook(request: Request):
         logger.error(f"Error details: {str(e)}", exc_info=True)
         return {
             "messages": [
-                {"text": f"Error: {str(e)}"}
+                {"text": "Có lỗi xảy ra trong quá trình xử lý. Vui lòng thử lại."}
             ]
         }
 
